@@ -79,6 +79,11 @@ def parse_dir(dir="./"):
     Returns documents as tokens, lookup table of each word
     in the vocabulary and the vocabulary.
     """
+    try:
+        nltk.corpus.stopwords.abspath('english')
+    except LookupError:
+        nltk.download('stopwords')
+
     docs = list() # list of the words for each review
     vocab = set() # the vocabulary
     stopwords = nltk.corpus.stopwords.words('english') \ 
