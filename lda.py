@@ -16,7 +16,7 @@ class Lda:
         self.docs = docs
         self.vocab = vocab
         self.word_idx = word_idx # lookup table of word indicis in vocab
-        self.n_topics = n_topics 
+        self.n_topics = n_topics
         self.ndz = np.zeros((n_docs, n_topics)) # times d has been assigned to each topic
         self.nwz = np.zeros((vocab_size, n_topics)) # times w has been assigned to each topic
         self.nz = np.zeros(self.n_topics) # times z has been assigned to any word
@@ -39,11 +39,10 @@ class Lda:
     def top_words(self, n):
         """ Print the top x words for each topic """
         for k in xrange(self.n_topics):
-            idcs = np.argpartition(self.nwz[:,k],-n)[-n:] 
+            idcs = np.argpartition(self.nwz[:,k],-n)[-n:]
             words = []
             for w in idcs:
                 words.append(self.vocab[w])
-                
             print "Topic %d: %s"%(k, words)
 
     def update(self):
@@ -57,7 +56,7 @@ class Lda:
                 self.nwz[cur_w, cur_z] -= 1
                 self.ndz[i, cur_z] -= 1
                 self.nz[cur_z] -= 1
-                
+ 
                 # calculate p(k=z_ij)
                 p_zw = (self.beta + self.nwz[cur_w,:]) / (len(self.vocab)*self.beta + self.nz)
                 p_zd = (self.alpha + self.ndz[i]) / (self.n_topics*self.alpha + len(doc))
@@ -97,7 +96,7 @@ def parse_dir(dir="./"):
     word_idx = {}
     for i,w in enumerate(vocab):
         word_idx[w] = i
-        
+ 
     return docs, word_idx,vocab
 
 
