@@ -86,7 +86,7 @@ def parse_dir(dir="./"):
 
     docs = list() # list of the words for each review
     vocab = set() # the vocabulary
-    stopwords = nltk.corpus.stopwords.words('english') \ 
+    stopwords = nltk.corpus.stopwords.words('english') \
                 + list(string.punctuation) # these words are ignored
     tokenizer = nltk.wordpunct_tokenize # callable to tokenize
     files = [f for f in os.listdir(dir) if f.endswith(".txt")]
