@@ -6,7 +6,6 @@ from math import log
 import os
 import heapq
 import string
-import lda
 import numpy
 
 
@@ -42,6 +41,7 @@ def create_count_matrix(X, vocabulary):
 
 
 def shuffle(l):
+    return l
     random.shuffle(l)
     return l
 
@@ -126,8 +126,8 @@ class LDA(object):
         K = self.K
 
         p = log(beta + self.count_topic_word[topic][word]) - log(beta * V + self.count_topic[topic]) + log(alpha + self.count_document_topic[i][topic]) - log(alpha * K + self.count_document[i])
-
         return p
+
 
     def word_per_topic(self):
         result = []
@@ -140,15 +140,12 @@ class LDA(object):
         return result
 
 if __name__ == '__main__':
-    path = 'review_polarity/txt_sentoken/pos'
+    path = 'data'
     X = []
     remove = nltk.corpus.stopwords.words('english') + list(string.punctuation) + ['``', "\'s"]
 
     t = 0
     for filename in os.listdir(os.getcwd() + '/' + path):
-        if t > 20:
-            break
-
         f = open(path + "/" + filename)
         X.append([word for word in nltk.word_tokenize(f.read()) if word not in remove])
 
