@@ -2,43 +2,11 @@ from __future__ import division
 
 import nltk
 import random
-from math import log
 import os
 import heapq
 import string
 import numpy
-
-
-def create_vocabulary(X):
-    print "Creating vocabulary."
-    vocabulary = []
-    visited = set()
-    for x in X:
-        for word in x:
-            if word not in visited:
-                vocabulary.append(word)
-                visited.add(word)
-
-    return vocabulary
-
-def create_count_matrix(X, vocabulary):
-    print "Creating count matrix."
-    mapping = {}
-    index = 0
-    for word in vocabulary:
-        mapping[word] = index
-        index += 1
-
-    newX = numpy.zeros((len(X), len(vocabulary)), dtype=int)
-
-    for i, x in enumerate(X):
-        for word in x:
-            newX[i][mapping[word]] += 1
-
-    return newX
-
-
-
+import DataModule
 
 def shuffle(l):
     return l
@@ -77,7 +45,7 @@ class LDA(object):
         Z = self.Z
         K = self.K
 
-        for iteration in range(15):
+        for iteration in range(200):
             print "Iteration: ", iteration
 
             assignments_changed = 0
@@ -87,46 +55,39 @@ class LDA(object):
 
                 for word in shuffle(range(len(document))):
                     word_count = document[word]
-
                     topic = Z[i][word]
 
                     self.count_topic_word[topic][word] -= word_count
                     self.count_topic[topic] -= word_count
                     self.count_document_topic[i][topic] -= word_count
                     self.count_document[i] -= word_count
+                    
+                    p = self.p_word(i, word)
+                    new_topic = numpy.argmax(numpy.random.multinomial(1, p))
 
-
-                    highest_p = -4096.
-                    highest_k = 0
-                    for k in range(K):
-                        p = self.p_topic_word(i, word, k)
-                
-                        if p > highest_p:
-                            highest_p = p
-                            highest_k = k
-
-                    if highest_k != topic:
+                    if topic != new_topic:
                         assignments_changed += 1
 
-                    Z[i][word] = highest_k
 
-                    self.count_topic_word[highest_k][word] += word_count
-                    self.count_topic[highest_k] += word_count
-                    self.count_document_topic[i][highest_k] += word_count
+                    Z[i][word] = new_topic
+
+                    self.count_topic_word[new_topic][word] += word_count
+                    self.count_topic[new_topic] += word_count
+                    self.count_document_topic[i][new_topic] += word_count
                     self.count_document[i] += word_count
 
             print "Assignments changed:", assignments_changed
-            if assignments_changed == 0:
-                break
 
-    def p_topic_word(self, i, word, topic):
+    def p_word(self, i, word):
         alpha = self.alpha
         beta = self.beta
         V = self.V
         K = self.K
 
-        p = log(beta + self.count_topic_word[topic][word]) - log(beta * V + self.count_topic[topic]) + log(alpha + self.count_document_topic[i][topic]) - log(alpha * K + self.count_document[i])
-        return p
+        p = (beta + self.count_topic_word[:,word]) / (beta * V + self.count_topic) * (alpha + self.count_document_topic[i]) / (alpha * K + self.count_document[i])
+        
+
+        return p / numpy.sum(p)
 
 
     def word_per_topic(self):
@@ -140,36 +101,13 @@ class LDA(object):
         return result
 
 if __name__ == '__main__':
-    path = 'data'
-    X = []
-    remove = set(nltk.corpus.stopwords.words('english') + list(string.punctuation) + ['``', "\'s"])
+    dataHandler = DataModule.DataHandler()
 
-    t = 0
-    for filename in os.listdir(os.getcwd() + '/' + path):
-        f = open(path + "/" + filename)
-        X.append([word for word in nltk.word_tokenize(f.read()) if word not in remove])
+    X = dataHandler.get_count_matrix()
 
-        t += 1
-        
+    lda = LDA(X, 5)
 
-    vocabulary = create_vocabulary(X)
-    X = create_count_matrix(X, vocabulary)
-
-    # model = lda.LDA(n_topics=20, n_iter=500, random_state=1)
-    # model.fit(X)  # model.fit_transform(X) is also available
-    # topic_word = model.topic_word_  # model.components_ also works
-    # n_top_words = 8
-
-    # for i, topic_dist in enumerate(topic_word):
-    #     topic_words = numpy.array(vocabulary)[numpy.argsort(topic_dist)][:-(n_top_words+1):-1]
-    #     print('Topic {}: {}'.format(i, ' '.join(topic_words)))
-
-    lda = LDA(X, 10)
+    print [[dataHandler.get_word_with_id(w) for w in topic_words] for topic_words in lda.word_per_topic()]
 
 
-
-    result = lda.word_per_topic()
-
-    for i in range(len(result)):
-        print "Topic {}: {}".format(i, [vocabulary[index] for index in result[i]])
 

@@ -12,13 +12,13 @@ class DataHandler(object):
         self.vocabulary = self._create_vocabulary(self.X)
         self.mapping_word_to_number, self.mapping_number_to_word = self._create_mapping(self.vocabulary)
 
-    def get_word_for_id(self, identifier):
+    def get_word_with_id(self, identifier):
         return self.mapping_number_to_word[identifier]
 
     def get_id_for_word(self, word):
         return self.mapping_word_to_number[word]
     
-    def get_data_count_matrix(self):
+    def get_count_matrix(self):
         count_matrix = numpy.zeros((len(self.X), len(self.vocabulary)), dtype=int)
 
         for i in range(len(self.X)):
@@ -34,7 +34,7 @@ class DataHandler(object):
 
 
     def _readData(self):
-        print "Reading data from files"
+        print "Reading data from files."
         path = 'data'
         X_sentenced = []
         X = []
@@ -42,22 +42,20 @@ class DataHandler(object):
         remove = set(nltk.corpus.stopwords.words('english') + list(string.punctuation) + ['``', "\'s", '--'])
 
         for filename in os.listdir(os.getcwd() + '/' + path):
-            f = open(path + "/" + filename)
-            x = []
-            x_sentenced = []
-            sentence = []
-            for word in nltk.word_tokenize(f.read()):
-                if word not in remove:
-                    x.append(word)
-
-                if word == '.' or word == '?' or word == '!' or word == ':':
-                    if sentence:
-                        x_sentenced.append(sentence)
-                        sentence = []
-                else:
-                    if word not in remove:
-                        sentence.append(word)
+            f = open(os.getcwd() + '/' + path + '/' + filename, 'r')
+            review = f.read()
+            
+            # Build word occurance file on document level.
+            x = [word for word in nltk.word_tokenize(review) if word not in remove]
             X.append(x)
+
+            # Build word occurance file on sentence level.
+            sentences = nltk.sent_tokenize(review)
+            x_sentenced = []
+            for j in range(len(sentences)):
+                if len(sentences[j]) > 1:
+                    x_sentenced.append([word for word in nltk.word_tokenize(sentences[j]) if word not in remove])
+
             X_sentenced.append(x_sentenced)
 
         return X, X_sentenced
@@ -99,5 +97,7 @@ class DataHandler(object):
 
 if __name__ == '__main__':
     dataHandler = DataHandler()
+
+
 
 
