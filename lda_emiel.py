@@ -142,7 +142,7 @@ class LDA(object):
 if __name__ == '__main__':
     path = 'data'
     X = []
-    remove = nltk.corpus.stopwords.words('english') + list(string.punctuation) + ['``', "\'s"]
+    remove = set(nltk.corpus.stopwords.words('english') + list(string.punctuation) + ['``', "\'s"])
 
     t = 0
     for filename in os.listdir(os.getcwd() + '/' + path):
