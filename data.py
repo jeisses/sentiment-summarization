@@ -40,7 +40,7 @@ def parse_document(content, stopwords):
         tokens = nltk.wordpunct_tokenize(s)
         sent_words = [w.lower() for w in tokens if w not in stopwords]
         sentences.append(sent_words)
-        word_sentence_map.extend([line]*len(sent_words))
+        word_sentence_map.extend([line-1]*len(sent_words))
         words.extend(sent_words)
 
     return words, word_sentence_map, sentences

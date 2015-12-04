@@ -29,9 +29,9 @@ class MgLda:
         self.K_loc    = n_local_topics
         self.K_gl     = n_global_topics
 
-        self.v_d_s_n  = []  # window assignment for each word
-        self.z_d_s_n  = []  # topic assignment for each word
-        self.r_d_s_n  = []  # glob (0) / loc (1) assignment for each word
+        self.v_d_s_n  = []  # window assignment for each word in a document
+        self.z_d_s_n  = []  # topic assignment for each word in a document
+        self.r_d_s_n  = []  # glob (0) / loc (1) assignment for each word in a document
 
         self.n_d_s    = []  # nr of words in sentence s
         self.n_d_s_v  = []  # nr of words in sentence s assigned to window v
@@ -60,12 +60,9 @@ class MgLda:
         print "DOING random assignment"
 
         for i,doc in enumerate(self.docs):
-
             v_d = [] # window id for each word relative to its sentence
             r_d = [] # glob / loc for each word
             z_d = [] # topic id for each word
-
-
 
             self.n_d_s.append([len(s) for s in self.sentences[i]])
             self.n_d_s_v.append([])
@@ -81,7 +78,6 @@ class MgLda:
             self.n_d_v_loc_z.append([])
             for v in range(n_windows):
                 self.n_d_v_loc_z[i].append([0]*self.K_loc)
-
 
             for w,word in enumerate(doc):
                 v = np.random.randint(0, self.T) # sliding window for this word, relative to sent
@@ -100,7 +96,6 @@ class MgLda:
                 cur_w = self.word_idx[word]
 
                 s = self.sent_idx[i][w] # sentence nr for this word
-                s -= 1
 
                 self.n_d_s_v[i][s][v] += 1
                 self.n_d_v[i][s+v]    += 1
@@ -121,10 +116,21 @@ class MgLda:
             self.r_d_s_n.append(r_d)
             self.z_d_s_n.append(z_d)
 
-    def top_words(self, n):
-        """ Print the top x words for each topic """
-        for k in xrange(self.K_loc):
-            idcs = np.argpartition(self.z_d_s_n,-n)[-n:]
+    def top_words(self, n, type):
+        """
+        Print the top x words for each topic. Type is "glob" or "loc"
+        """
+        if type == "glob":
+            K = self.K_gl
+        elif type == "loc":
+            K = self.K_loc
+
+        for k in xrange(K):
+            if type == "glob":
+                idcs = np.argpartition(self.n_gl_z_w[k],-n)[-n:]
+            elif type == "loc":
+                idcs = np.argpartition(self.n_loc_z_w[k],-n)[-n:]
+
             words = []
             for w in idcs:
                 words.append(self.vocab[w])
@@ -136,7 +142,7 @@ class MgLda:
 
         for d,doc in enumerate(self.docs):
             for i,w in enumerate(doc):
-                s = self.sent_idx[d][i] - 1
+                s = self.sent_idx[d][i]
 
                 v = self.v_d_s_n[d][i]
                 r = self.r_d_s_n[d][i]
@@ -196,13 +202,13 @@ class MgLda:
  
 
                 # update
-                if new_r == "gl":
+                if new_r == 0:
                     self.n_gl_z_w[new_z][word]          += 1
                     self.n_gl_z[new_z]                  += 1
                     self.n_d_v_gl[d][s+new_v]           += 1
                     self.n_d_gl_z[d][new_z]             += 1
                     self.n_d_gl[d]                      += 1
-                elif new_r == "loc":
+                elif new_r == 1:
                     self.n_loc_z_w[new_z][word]         += 1
                     self.n_loc_z[new_z]                 += 1
                     self.n_d_v_loc[d][s+new_v]          += 1
@@ -230,5 +236,9 @@ docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/")
 print "Done"
 print " ====== "
 print "Setting up LDA.."
-
 l = MgLda(10, 50, docs, vocab, word_idx, sentences, sent_idx)
+print "Done! Running 50 iterations..."
+for i in range(0, 50):
+    l.update()
+print "Done! Pritning local topics:"
+l.top_words(10, "loc")
