@@ -1,6 +1,7 @@
 import string
 import numpy as np
 import data
+import time
 
 
 class MgLda:
@@ -139,6 +140,7 @@ class MgLda:
     def update(self):
         """ Perform 1 step of Gibbs sampling """
         updated = 0
+        log_lik = 0.0
 
         for d,doc in enumerate(self.docs):
             for i,w in enumerate(doc):
@@ -199,9 +201,11 @@ class MgLda:
                     score_loc = term1 * term2 * term3 * term4
                     p_v_r_z = np.concatenate([p_v_r_z, score_glob, score_loc])
 
-                new_p_v_r_z_idx = np.random.multinomial(1, p_v_r_z / p_v_r_z.sum()).argmax()
+                prob = p_v_r_z / p_v_r_z.sum()
+                new_p_v_r_z = np.random.multinomial(1, prob)
+                new_p_v_r_z_idx = new_p_v_r_z.argmax()
+                prob = prob[new_p_v_r_z_idx]
                 new_v, new_r, new_z = label_v_r_z[new_p_v_r_z_idx]
-                
 
                 # update
                 if new_r == 0:
@@ -224,23 +228,29 @@ class MgLda:
                 self.r_d_s_n[d][i] = new_r
                 self.z_d_s_n[d][i] = new_z
 
+                log_lik += np.log(prob)
                 if new_z != z:
                     updated += 1
-        print "Updated %d"%updated
 
+        print log_lik
+        print "Updated %d, log likelihood: %f"%(updated, log_lik)
 
 
 
 # EXAMPLE
 print "Parsing dir.."
+#docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/small/")
 docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/all/")
 print "Done"
 print " ====== "
 print "Setting up LDA.."
-l = MgLda(10, 25, docs, vocab, word_idx, sentences, sent_idx)
+l = MgLda(3, 10, docs, vocab, word_idx, sentences, sent_idx)
 print "Done! Running 50 iterations..."
 for i in range(0, 50):
+    start = time.time()
     l.update()
+    end = time.time()
+    print "Duration: %f"%(end-start)
 
 print "Done! Pritning local topics:"
 l.top_words(10, "loc")
