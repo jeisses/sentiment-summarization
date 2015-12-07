@@ -76,8 +76,8 @@ class Lda:
 
 # EXAMPLE
 print "Parsing dir.."
-#docs, vocab, word_idx, _, _ = data.parse_dir("./data/")
-docs, vocab, word_idx, _, _ = data.parse_dir("/Users/jeisses/Documents/datasets/nlp/movie/review_polarity/txt_sentoken/all/")
+docs, vocab, word_idx, _, _ = data.parse_dir("./data/")
+# docs, vocab, word_idx, _, _ = data.parse_dir("/Users/jeisses/Documents/datasets/nlp/movie/review_polarity/txt_sentoken/all/")
 print "Done"
 print " ====== "
 print "Setting up LDA.."
