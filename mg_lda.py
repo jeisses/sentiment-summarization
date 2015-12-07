@@ -233,8 +233,7 @@ class MgLda:
 
 # EXAMPLE
 print "Parsing dir.."
-docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/")
-#docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("/Users/jeisses/Documents/datasets/nlp/movie/review_polarity/txt_sentoken/all/")
+docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/all/")
 print "Done"
 print " ====== "
 print "Setting up LDA.."
