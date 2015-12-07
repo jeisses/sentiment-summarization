@@ -1,7 +1,6 @@
-import os
-import nltk
 import string
 import numpy as np
+import data
 
 
 class Lda:
@@ -73,41 +72,12 @@ class Lda:
         print "Updated %d"%updated
 
 
-def parse_dir(dir="./"):
-    """
-    Create vocabulary from directory. Parses all .txt files.
-    Returns documents as tokens, lookup table of each word
-    in the vocabulary and the vocabulary.
-    """
-    try:
-        nltk.corpus.stopwords.abspath('english')
-    except LookupError:
-        nltk.download('stopwords')
-
-    docs = list() # list of the words for each review
-    vocab = set() # the vocabulary
-    stopwords = nltk.corpus.stopwords.words('english') \
-                + list(string.punctuation) # these words are ignored
-    tokenizer = nltk.wordpunct_tokenize # callable to tokenize
-    files = [f for f in os.listdir(dir) if f.endswith(".txt")]
-    for f in files:
-        raw = open(dir + f).read()
-        tokens = tokenizer(raw)
-        words = [w.lower() for w in tokens if w not in stopwords]
-        docs.append(words)
-        vocab.update(words)
-    vocab = list(vocab)
-
-    word_idx = {}
-    for i,w in enumerate(vocab):
-        word_idx[w] = i
- 
-    return docs, word_idx,vocab
 
 
 # EXAMPLE
 print "Parsing dir.."
-docs, word_idx, vocab = parse_dir("./data/")
+#docs, vocab, word_idx, _, _ = data.parse_dir("./data/")
+docs, vocab, word_idx, _, _ = data.parse_dir("/Users/jeisses/Documents/datasets/nlp/movie/review_polarity/txt_sentoken/all/")
 print "Done"
 print " ====== "
 print "Setting up LDA.."
