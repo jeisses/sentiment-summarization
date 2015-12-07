@@ -1,6 +1,7 @@
 import string
 import numpy as np
 import data
+import time
 
 
 class MgLda:
@@ -238,6 +239,9 @@ print "Setting up LDA.."
 l = MgLda(10, 50, docs, vocab, word_idx, sentences, sent_idx)
 print "Done! Running 50 iterations..."
 for i in range(0, 50):
+    start = time.time()
     l.update()
+    end = time.time()
+    print "duration %f"%(end-start)
 print "Done! Pritning local topics:"
 l.top_words(10, "loc")
