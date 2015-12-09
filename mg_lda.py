@@ -52,6 +52,20 @@ class MgLda:
         self.n_gl_z  = np.zeros(self.K_gl)  # times global z has been assigned to any word
         self.n_loc_z = np.zeros(self.K_loc) # times local z has been assigned to any word
 
+        # Cache the label lookup table
+        # Used in the update hook to quickly find labels and responsibilities
+        # for a sample.
+        self.label_v_r_z = []
+        for v_t in range(self.T):
+            for z_t in range(self.K_gl):
+                label = [v_t, 0, z_t]
+                self.label_v_r_z.append(label)
+        for v_t in range(self.T):
+            for z_t in range(self.K_loc):
+                label = [v_t, 1, z_t]
+                self.label_v_r_z.append(label)
+
+
         self.random_assignment()
 
     def random_assignment(self):
@@ -170,13 +184,6 @@ class MgLda:
                 W = len(self.vocab)
                 # sample a new topic
                 p_v_r_z = []
-                label_v_r_z = []
-
-                # for r == "gl"
-                for v_t in range(self.T):
-                    for z_t in range(self.K_gl):
-                        label = [v_t, 0, z_t]
-                        label_v_r_z.append(label)
 
                 # sampling eq as gl
                 term1 = (self.n_gl_z_w[:,word] + self.beta_gl) / (self.n_gl_z + W*self.beta_gl)
@@ -185,14 +192,6 @@ class MgLda:
                 term4 = (self.n_d_gl_z[d] + self.alpha_gl) / (self.n_d_gl[d] + self.K_gl*self.alpha_gl)
                 score_glob = term1 * np.reshape(term2, (3,1)) * np.reshape(term3, (3,1))* term4
                 score_glob = np.asarray(score_glob).reshape(-1)
-                #p_v_r_z = np.concatenate([p_v_r_z, score])
-                #p_v_r_z.append(score)
-                # for r == "loc" 
-
-                for v_t in range(self.T):
-                    for z_t in range(self.K_loc):
-                        label = [v_t, 1, z_t]
-                        label_v_r_z.append(label)
 
                 # sampling eq as loc
                 term1 = (self.n_loc_z_w[:,word] + self.beta_loc) / (self.n_loc_z + W*self.beta_loc)
@@ -207,7 +206,7 @@ class MgLda:
                 new_p_v_r_z = np.random.multinomial(1, prob)
                 new_p_v_r_z_idx = new_p_v_r_z.argmax()
                 prob = prob[new_p_v_r_z_idx]
-                new_v, new_r, new_z = label_v_r_z[new_p_v_r_z_idx]
+                new_v, new_r, new_z = self.label_v_r_z[new_p_v_r_z_idx]
 
                 # update
                 if new_r == 0:
