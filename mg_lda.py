@@ -76,9 +76,7 @@ class MgLda:
 
             self.n_d_v_gl.append(np.asarray([0]*n_windows))
             self.n_d_v_loc.append(np.asarray([0]*n_windows))
-            self.n_d_v_loc_z.append([])
-            for v in range(n_windows):
-                self.n_d_v_loc_z[i].append(np.asarray([0]*self.K_loc))
+            self.n_d_v_loc_z.append(np.zeros((n_windows, self.K_loc)))
 
             for w,word in enumerate(doc):
                 v = np.random.randint(0, self.T) # sliding window for this word, relative to sent
@@ -173,33 +171,37 @@ class MgLda:
                 # sample a new topic
                 p_v_r_z = []
                 label_v_r_z = []
+
+                # for r == "gl"
                 for v_t in range(self.T):
-                    # for r == "gl"
                     for z_t in range(self.K_gl):
                         label = [v_t, 0, z_t]
                         label_v_r_z.append(label)
 
-                    # sampling eq as gl
-                    term1 = (self.n_gl_z_w[:,word] + self.beta_gl) / (self.n_gl_z + W*self.beta_gl)
-                    term2 = (self.n_d_s_v[d][s][v_t] + self.gamma) / (self.n_d_s[d][s] + self.T*self.gamma)
-                    term3 = (self.n_d_v_gl[d][s+v_t] + self.alpha_mix_gl) / (self.n_d_v[d][s+v_t] + self.alpha_mix_gl + self.alpha_mix_loc)
-                    term4 = (self.n_d_gl_z[d] + self.alpha_gl) / (self.n_d_gl[d] + self.K_gl*self.alpha_gl)
-                    score_glob = term1 * term2 * term3 * term4
-                    #p_v_r_z = np.concatenate([p_v_r_z, score])
-                    #p_v_r_z.append(score)
-                    # for r == "loc" 
+                # sampling eq as gl
+                term1 = (self.n_gl_z_w[:,word] + self.beta_gl) / (self.n_gl_z + W*self.beta_gl)
+                term2 = (self.n_d_s_v[d][s] + self.gamma) / (self.n_d_s[d][s] + self.T*self.gamma)
+                term3 = (self.n_d_v_gl[d][s:s+self.T] + self.alpha_mix_gl) / (self.n_d_v[d][s:s+self.T] + self.alpha_mix_gl + self.alpha_mix_loc)
+                term4 = (self.n_d_gl_z[d] + self.alpha_gl) / (self.n_d_gl[d] + self.K_gl*self.alpha_gl)
+                score_glob = term1 * np.reshape(term2, (3,1)) * np.reshape(term3, (3,1))* term4
+                score_glob = np.asarray(score_glob).reshape(-1)
+                #p_v_r_z = np.concatenate([p_v_r_z, score])
+                #p_v_r_z.append(score)
+                # for r == "loc" 
 
+                for v_t in range(self.T):
                     for z_t in range(self.K_loc):
                         label = [v_t, 1, z_t]
                         label_v_r_z.append(label)
 
-                    # sampling eq as loc
-                    term1 = (self.n_loc_z_w[:,word] + self.beta_loc) / (self.n_loc_z + W*self.beta_loc)
-                    term2 = (self.n_d_s_v[d][s][v_t] + self.gamma) / (self.n_d_s[d][s] + self.T*self.gamma)
-                    term3 = (self.n_d_v_loc[d][s+v_t] + self.alpha_mix_loc) / (self.n_d_v[d][s+v_t] + self.alpha_mix_gl + self.alpha_mix_loc)
-                    term4 = (self.n_d_v_loc_z[d][s+v_t] + self.alpha_loc) / (self.n_d_v_loc[d][s+v_t] + self.K_loc*self.alpha_loc)
-                    score_loc = term1 * term2 * term3 * term4
-                    p_v_r_z = np.concatenate([p_v_r_z, score_glob, score_loc])
+                # sampling eq as loc
+                term1 = (self.n_loc_z_w[:,word] + self.beta_loc) / (self.n_loc_z + W*self.beta_loc)
+                term2 = (self.n_d_s_v[d][s] + self.gamma) / (self.n_d_s[d][s] + self.T*self.gamma)
+                term3 = (self.n_d_v_loc[d][s:s+self.T] + self.alpha_mix_loc) / (self.n_d_v[d][s:s+self.T] + self.alpha_mix_gl + self.alpha_mix_loc)
+                term4 = (self.n_d_v_loc_z[d][s:s+self.T,].T + self.alpha_loc) / (self.n_d_v_loc[d][s:s+self.T] + self.K_loc*self.alpha_loc)
+                score_loc = term1 * np.reshape(term2, (3,1)) * np.reshape(term3, (3,1)) * term4.T
+                score_loc = np.asarray(score_loc).reshape(-1)
+                p_v_r_z = np.concatenate([p_v_r_z, score_glob, score_loc])
 
                 prob = p_v_r_z / p_v_r_z.sum()
                 new_p_v_r_z = np.random.multinomial(1, prob)
@@ -232,25 +234,24 @@ class MgLda:
                 if new_z != z:
                     updated += 1
 
-        print log_lik
         print "Updated %d, log likelihood: %f"%(updated, log_lik)
 
 
 
 # EXAMPLE
 print "Parsing dir.."
-#docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/small/")
-docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/all/")
+docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/small/")
+#docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/all/")
 print "Done"
 print " ====== "
 print "Setting up LDA.."
-l = MgLda(3, 10, docs, vocab, word_idx, sentences, sent_idx)
+l = MgLda(10, 25, docs, vocab, word_idx, sentences, sent_idx)
 print "Done! Running 50 iterations..."
-for i in range(0, 50):
+for i in range(0, 200):
     start = time.time()
     l.update()
     end = time.time()
-    print "Duration: %f"%(end-start)
+    print "Iteration %d, Duration: %f"%(i, (end-start))
 
 print "Done! Pritning local topics:"
 l.top_words(10, "loc")
