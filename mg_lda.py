@@ -140,6 +140,7 @@ class MgLda:
     def update(self):
         """ Perform 1 step of Gibbs sampling """
         updated = 0
+        log_lik = 0
 
         for d,doc in enumerate(self.docs):
             for i,w in enumerate(doc):
@@ -196,9 +197,10 @@ class MgLda:
                         score = term1 * term2 * term3 * term4
                         p_v_r_z.append(score)
 
-
-                np_p_v_r_z = np.array(p_v_r_z)
-                new_p_v_r_z_idx = np.random.multinomial(1, np_p_v_r_z / np_p_v_r_z.sum()).argmax()
+                prob = np.asarray(p_v_r_z) / np.asarray(p_v_r_z).sum()
+                new_p_v_r_z = np.random.multinomial(1, prob)
+                new_p_v_r_z_idx = new_p_v_r_z.argmax()
+                prob = prob[new_p_v_r_z_idx]
                 new_v, new_r, new_z = label_v_r_z[new_p_v_r_z_idx]
  
 
@@ -223,16 +225,17 @@ class MgLda:
                 self.r_d_s_n[d][i] = new_r
                 self.z_d_s_n[d][i] = new_z
 
+                log_lik += np.log(prob)
                 if new_z != z:
                     updated += 1
-        print "Updated %d"%updated
+        print "Updated %d, log lik %f"%(updated, log_lik)
 
 
 
 
 # EXAMPLE
 print "Parsing dir.."
-docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/all/")
+docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/small/")
 print "Done"
 print " ====== "
 print "Setting up LDA.."
