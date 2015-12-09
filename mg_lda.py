@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import string
 import numpy as np
 import data
@@ -254,3 +257,4 @@ for i in range(0, 50):
 
 print "Done! Pritning local topics:"
 l.top_words(10, "loc")
+l.top_words(10, "glob")
