@@ -84,3 +84,5 @@ def load_last_model():
 
 # load a created model
 l,updates,log_lik = load_last_model()
+print "Loaded latest model. Local topics are:"
+l.top_words(10, "loc")
