@@ -3,8 +3,9 @@ import numpy as np
 import data
 import time
 
-
 class MgLda:
+    updates = 0    # Updated topics in the last iteration
+    log_lik = 0.0  # Log likelihood of the current model
 
     def __init__(self, n_local_topics, n_global_topics, docs, vocab, word_idx, sentences, sent_idx):
         """ Create counts and random initial assignment """
@@ -149,10 +150,38 @@ class MgLda:
                 words.append(self.vocab[w])
             print "Local Topic %d: %s"%(k, words)
 
+    def p_v_r_z(self, d, i, w):
+        """
+        Calculate the conditional probabilities for all kinds topics for words i.
+        Returns array with first global probs for each window, followed by local
+        probs for each window.
+        """
+        W = len(self.vocab)
+        s = self.sent_idx[d][i]
+        word = self.word_idx[w]
+
+        # probabilities for global topics
+        term1 = (self.n_gl_z_w[:,word] + self.beta_gl) / (self.n_gl_z + W*self.beta_gl)
+        term2 = (self.n_d_s_v[d][s] + self.gamma) / (self.n_d_s[d][s] + self.T*self.gamma)
+        term3 = (self.n_d_v_gl[d][s:s+self.T] + self.alpha_mix_gl) / (self.n_d_v[d][s:s+self.T] + self.alpha_mix_gl + self.alpha_mix_loc)
+        term4 = (self.n_d_gl_z[d] + self.alpha_gl) / (self.n_d_gl[d] + self.K_gl*self.alpha_gl)
+        score_glob = term1 * np.reshape(term2, (3,1)) * np.reshape(term3, (3,1))* term4
+        score_glob = np.asarray(score_glob).reshape(-1)
+
+        # probabilities for local topics
+        term1 = (self.n_loc_z_w[:,word] + self.beta_loc) / (self.n_loc_z + W*self.beta_loc)
+        term2 = (self.n_d_s_v[d][s] + self.gamma) / (self.n_d_s[d][s] + self.T*self.gamma)
+        term3 = (self.n_d_v_loc[d][s:s+self.T] + self.alpha_mix_loc) / (self.n_d_v[d][s:s+self.T] + self.alpha_mix_gl + self.alpha_mix_loc)
+        term4 = (self.n_d_v_loc_z[d][s:s+self.T,].T + self.alpha_loc) / (self.n_d_v_loc[d][s:s+self.T] + self.K_loc*self.alpha_loc)
+        score_loc = term1 * np.reshape(term2, (3,1)) * np.reshape(term3, (3,1)) * term4.T
+        score_loc = np.asarray(score_loc).reshape(-1)
+        return np.concatenate([score_glob, score_loc])
+
+
     def update(self):
         """ Perform 1 step of Gibbs sampling """
-        updated = 0
-        log_lik = 0.0
+        self.updates = 0
+        self.log_lik = 0.0
 
         for d,doc in enumerate(self.docs):
             for i,w in enumerate(doc):
@@ -181,26 +210,9 @@ class MgLda:
                 self.n_d_s[d][s]            -= 1
                 self.n_d_v[d][s+v]          -= 1
 
-                W = len(self.vocab)
-                # sample a new topic
-                p_v_r_z = []
 
-                # sampling eq as gl
-                term1 = (self.n_gl_z_w[:,word] + self.beta_gl) / (self.n_gl_z + W*self.beta_gl)
-                term2 = (self.n_d_s_v[d][s] + self.gamma) / (self.n_d_s[d][s] + self.T*self.gamma)
-                term3 = (self.n_d_v_gl[d][s:s+self.T] + self.alpha_mix_gl) / (self.n_d_v[d][s:s+self.T] + self.alpha_mix_gl + self.alpha_mix_loc)
-                term4 = (self.n_d_gl_z[d] + self.alpha_gl) / (self.n_d_gl[d] + self.K_gl*self.alpha_gl)
-                score_glob = term1 * np.reshape(term2, (3,1)) * np.reshape(term3, (3,1))* term4
-                score_glob = np.asarray(score_glob).reshape(-1)
-
-                # sampling eq as loc
-                term1 = (self.n_loc_z_w[:,word] + self.beta_loc) / (self.n_loc_z + W*self.beta_loc)
-                term2 = (self.n_d_s_v[d][s] + self.gamma) / (self.n_d_s[d][s] + self.T*self.gamma)
-                term3 = (self.n_d_v_loc[d][s:s+self.T] + self.alpha_mix_loc) / (self.n_d_v[d][s:s+self.T] + self.alpha_mix_gl + self.alpha_mix_loc)
-                term4 = (self.n_d_v_loc_z[d][s:s+self.T,].T + self.alpha_loc) / (self.n_d_v_loc[d][s:s+self.T] + self.K_loc*self.alpha_loc)
-                score_loc = term1 * np.reshape(term2, (3,1)) * np.reshape(term3, (3,1)) * term4.T
-                score_loc = np.asarray(score_loc).reshape(-1)
-                p_v_r_z = np.concatenate([p_v_r_z, score_glob, score_loc])
+                # get distribution of topics
+                p_v_r_z = self.p_v_r_z(d, i, w)
 
                 prob = p_v_r_z / p_v_r_z.sum()
                 new_p_v_r_z = np.random.multinomial(1, prob)
@@ -229,28 +241,6 @@ class MgLda:
                 self.r_d_s_n[d][i] = new_r
                 self.z_d_s_n[d][i] = new_z
 
-                log_lik += np.log(prob)
+                self.log_lik += np.log(prob)
                 if new_z != z:
-                    updated += 1
-
-        print "Updated %d, log likelihood: %f"%(updated, log_lik)
-
-
-
-# EXAMPLE
-print "Parsing dir.."
-docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/small/")
-#docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/all/")
-print "Done"
-print " ====== "
-print "Setting up LDA.."
-l = MgLda(10, 25, docs, vocab, word_idx, sentences, sent_idx)
-print "Done! Running 50 iterations..."
-for i in range(0, 50):
-    start = time.time()
-    l.update()
-    end = time.time()
-    print "Iteration %d, Duration: %f"%(i, (end-start))
-
-print "Done! Pritning local topics:"
-l.top_words(10, "loc")
+                    self.updates += 1
