@@ -1,6 +1,7 @@
 import string
 import numpy as np
 import data
+import time
 
 
 class MgLda:
@@ -41,7 +42,7 @@ class MgLda:
         self.n_d_v_loc = []  # nr of words in window v assigned to local topics
 
         self.n_d_gl_z   = np.zeros((n_docs, self.K_gl))  # times d has been assigned to global topic
-        self.n_d_gl     = np.zeros(n_docs)          # times d 
+        self.n_d_gl     = np.zeros(n_docs)          # times d has been assigned
 
         self.n_d_v_loc_z = []  # times window v has been assigned local topic
 
@@ -50,6 +51,20 @@ class MgLda:
 
         self.n_gl_z  = np.zeros(self.K_gl)  # times global z has been assigned to any word
         self.n_loc_z = np.zeros(self.K_loc) # times local z has been assigned to any word
+
+        # Cache the label lookup table
+        # Used in the update hook to quickly find labels and responsibilities
+        # for a sample.
+        self.label_v_r_z = []
+        for v_t in range(self.T):
+            for z_t in range(self.K_gl):
+                label = [v_t, 0, z_t]
+                self.label_v_r_z.append(label)
+        for v_t in range(self.T):
+            for z_t in range(self.K_loc):
+                label = [v_t, 1, z_t]
+                self.label_v_r_z.append(label)
+
 
         self.random_assignment()
 
@@ -70,14 +85,12 @@ class MgLda:
             n_windows = self.T+len(self.sentences[i])
 
             for s in self.sentences[i]:
-                self.n_d_s_v[i].append([0 for a in range(0, self.T)])
-            self.n_d_v.append([0 for a in range(0, n_windows)])
+                self.n_d_s_v[i].append(np.asarray([0 for a in range(0, self.T)]))
+            self.n_d_v.append(np.asarray([0 for a in range(0, n_windows)]))
 
-            self.n_d_v_gl.append([0]*n_windows)
-            self.n_d_v_loc.append([0]*n_windows)
-            self.n_d_v_loc_z.append([])
-            for v in range(n_windows):
-                self.n_d_v_loc_z[i].append([0]*self.K_loc)
+            self.n_d_v_gl.append(np.asarray([0]*n_windows))
+            self.n_d_v_loc.append(np.asarray([0]*n_windows))
+            self.n_d_v_loc_z.append(np.zeros((n_windows, self.K_loc)))
 
             for w,word in enumerate(doc):
                 v = np.random.randint(0, self.T) # sliding window for this word, relative to sent
@@ -139,6 +152,7 @@ class MgLda:
     def update(self):
         """ Perform 1 step of Gibbs sampling """
         updated = 0
+        log_lik = 0.0
 
         for d,doc in enumerate(self.docs):
             for i,w in enumerate(doc):
@@ -170,36 +184,29 @@ class MgLda:
                 W = len(self.vocab)
                 # sample a new topic
                 p_v_r_z = []
-                label_v_r_z = []
-                for v_t in range(self.T):
-                    # for r == "gl"
-                    for z_t in range(self.K_gl):
-                        label = [v_t, 0, z_t]
-                        label_v_r_z.append(label)
-                        # sampling eq as gl
-                        term1 = float(self.n_gl_z_w[z_t][word] + self.beta_gl) / (self.n_gl_z[z_t] + W*self.beta_gl)
-                        term2 = float(self.n_d_s_v[d][s][v_t] + self.gamma) / (self.n_d_s[d][s] + self.T*self.gamma)
-                        term3 = float(self.n_d_v_gl[d][s+v_t] + self.alpha_mix_gl) / (self.n_d_v[d][s+v_t] + self.alpha_mix_gl + self.alpha_mix_loc)
-                        term4 = float(self.n_d_gl_z[d][z_t] + self.alpha_gl) / (self.n_d_gl[d] + self.K_gl*self.alpha_gl)
-                        score = term1 * term2 * term3 * term4
-                        p_v_r_z.append(score)
-                        # for r == "loc" 
-                    for z_t in range(self.K_loc):
-                        label = [v_t, 1, z_t]
-                        label_v_r_z.append(label)
-                        # sampling eq as loc
-                        term1 = float(self.n_loc_z_w[z_t][word] + self.beta_loc) / (self.n_loc_z[z_t] + W*self.beta_loc)
-                        term2 = float(self.n_d_s_v[d][s][v_t] + self.gamma) / (self.n_d_s[d][s] + self.T*self.gamma)
-                        term3 = float(self.n_d_v_loc[d][s+v_t] + self.alpha_mix_loc) / (self.n_d_v[d][s+v_t] + self.alpha_mix_gl + self.alpha_mix_loc)
-                        term4 = float(self.n_d_v_loc_z[d][s+v_t][z_t] + self.alpha_loc) / (self.n_d_v_loc[d][s+v_t] + self.K_loc*self.alpha_loc)
-                        score = term1 * term2 * term3 * term4
-                        p_v_r_z.append(score)
 
+                # sampling eq as gl
+                term1 = (self.n_gl_z_w[:,word] + self.beta_gl) / (self.n_gl_z + W*self.beta_gl)
+                term2 = (self.n_d_s_v[d][s] + self.gamma) / (self.n_d_s[d][s] + self.T*self.gamma)
+                term3 = (self.n_d_v_gl[d][s:s+self.T] + self.alpha_mix_gl) / (self.n_d_v[d][s:s+self.T] + self.alpha_mix_gl + self.alpha_mix_loc)
+                term4 = (self.n_d_gl_z[d] + self.alpha_gl) / (self.n_d_gl[d] + self.K_gl*self.alpha_gl)
+                score_glob = term1 * np.reshape(term2, (3,1)) * np.reshape(term3, (3,1))* term4
+                score_glob = np.asarray(score_glob).reshape(-1)
 
-                np_p_v_r_z = np.array(p_v_r_z)
-                new_p_v_r_z_idx = np.random.multinomial(1, np_p_v_r_z / np_p_v_r_z.sum()).argmax()
-                new_v, new_r, new_z = label_v_r_z[new_p_v_r_z_idx]
- 
+                # sampling eq as loc
+                term1 = (self.n_loc_z_w[:,word] + self.beta_loc) / (self.n_loc_z + W*self.beta_loc)
+                term2 = (self.n_d_s_v[d][s] + self.gamma) / (self.n_d_s[d][s] + self.T*self.gamma)
+                term3 = (self.n_d_v_loc[d][s:s+self.T] + self.alpha_mix_loc) / (self.n_d_v[d][s:s+self.T] + self.alpha_mix_gl + self.alpha_mix_loc)
+                term4 = (self.n_d_v_loc_z[d][s:s+self.T,].T + self.alpha_loc) / (self.n_d_v_loc[d][s:s+self.T] + self.K_loc*self.alpha_loc)
+                score_loc = term1 * np.reshape(term2, (3,1)) * np.reshape(term3, (3,1)) * term4.T
+                score_loc = np.asarray(score_loc).reshape(-1)
+                p_v_r_z = np.concatenate([p_v_r_z, score_glob, score_loc])
+
+                prob = p_v_r_z / p_v_r_z.sum()
+                new_p_v_r_z = np.random.multinomial(1, prob)
+                new_p_v_r_z_idx = new_p_v_r_z.argmax()
+                prob = prob[new_p_v_r_z_idx]
+                new_v, new_r, new_z = self.label_v_r_z[new_p_v_r_z_idx]
 
                 # update
                 if new_r == 0:
@@ -217,28 +224,33 @@ class MgLda:
                 self.n_d_s_v[d][s][new_v]               += 1
                 self.n_d_s[d][s]                        += 1
                 self.n_d_v[d][s+new_v]                  += 1
-                    
+                
                 self.v_d_s_n[d][i] = new_v
                 self.r_d_s_n[d][i] = new_r
                 self.z_d_s_n[d][i] = new_z
 
+                log_lik += np.log(prob)
                 if new_z != z:
                     updated += 1
-        print "Updated %d"%updated
 
+        print "Updated %d, log likelihood: %f"%(updated, log_lik)
 
 
 
 # EXAMPLE
 print "Parsing dir.."
-docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/")
-#docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("/Users/jeisses/Documents/datasets/nlp/movie/review_polarity/txt_sentoken/all/")
+docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/small/")
+#docs, vocab, word_idx, sent_idx, sentences = data.parse_dir("./data/all/")
 print "Done"
 print " ====== "
 print "Setting up LDA.."
-l = MgLda(10, 50, docs, vocab, word_idx, sentences, sent_idx)
+l = MgLda(10, 25, docs, vocab, word_idx, sentences, sent_idx)
 print "Done! Running 50 iterations..."
 for i in range(0, 50):
+    start = time.time()
     l.update()
+    end = time.time()
+    print "Iteration %d, Duration: %f"%(i, (end-start))
+
 print "Done! Pritning local topics:"
 l.top_words(10, "loc")
