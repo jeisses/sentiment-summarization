@@ -86,3 +86,8 @@ def load_last_model():
 l,updates,log_lik = load_last_model()
 print "Loaded latest model. Local topics are:"
 l.top_words(10, "loc")
+
+
+print "Loaded latest model. Global topics are:"
+l.top_words(10, "glob")
+

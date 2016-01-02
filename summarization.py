@@ -4,9 +4,11 @@ import time
 import cPickle as pickle
 import numpy as np
 import make_model
+import os
 
 updates = []
 log_lik = []
+
 
 def sentence_probability(model):
     """ Get probabilities for all sentences in the data """
@@ -37,28 +39,55 @@ def find_best_topic(topic, pp, model):
     """
 
     labels = model.label_v_r_z
-    best_prob = -9999.0
-    best_sent = [0]*5 # grab 5 sentences for now
-    best_doc  = [0]*5 
+    sentences = []
+
     for d,p_doc in enumerate(pp):
         for s,p_sent in enumerate(p_doc):
+            if len(model.sentences[d][s]) < 3:
+                continue
+
             best_idx = np.argmax(p_sent)
             lab = labels[best_idx]
             prob = p_sent[best_idx]
+
             if lab[1] == 1 and lab[2] == topic:
-                if prob >= best_prob:
-                    best_sent[4] = best_sent[3] 
-                    best_sent[3] = best_sent[2] 
-                    best_sent[2] = best_sent[1] 
-                    best_sent[1] = best_sent[0] 
-                    best_sent[0] = s
-                    best_doc[4] = best_doc[3] 
-                    best_doc[3] = best_doc[2] 
-                    best_doc[2] = best_doc[1] 
-                    best_doc[1] = best_doc[0] 
-                    best_doc[0] = d
-                    best_prob = prob
-    return best_prob, best_doc, best_sent
+                sentences += [(prob, s, d)]
+
+    sentences = sorted(sentences)
+
+    return sentences[-10:]
+
+
+def extract_sentence(model, d, s):
+    dir = "./data/all/"
+    filenames = [filename for filename in os.listdir(dir) if filename.endswith(".txt")]
+    
+    raw = open(dir + filenames[d]).read()
+
+    sentence = model.sentences[d][s]
+
+    first = sentence[0]
+    firstIdx = 0
+
+    for i in range(0, len(raw) - len(first)):
+        if raw[i:i + len(first)] == first:
+            firstIdx = i
+            break
+
+
+    last = sentence[-1]
+
+    lastIdx = len(raw)
+
+    for i in range(len(raw), len(last), -1):
+        if raw[i - len(last):i] == last:
+            lastIdx = i
+            break
+
+
+    return raw[firstIdx:lastIdx]
+
+    
 
 
 # Get most probable sentences for each topic
@@ -67,6 +96,10 @@ print "Calculating sentence probabilities..."
 sent_prob = sentence_probability(l)
 print "Done! Printing topics..."
 for z in range(l.K_loc):
-    _,doc,sent= find_best_topic(z, sent_prob, l)
-    for i,d in enumerate(doc):
-        print "Topic %d sent %s "%(z, l.sentences[d][sent[i]])
+    sentences = find_best_topic(z, sent_prob, l)
+
+    for prob, s, d in sentences:
+        print "Topic %d: doc %d sent %s "%(z, d, l.sentences[d][s])
+
+        # Helps with searching:
+        # print extract_sentence(l, d, s)

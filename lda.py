@@ -1,7 +1,11 @@
+from __future__ import division
 import string
 import numpy as np
 import data
 
+from math import log
+
+import matplotlib.pyplot as plt
 
 class Lda:
     alpha = 0.5
@@ -21,6 +25,8 @@ class Lda:
         self.nz = np.zeros(self.n_topics) # times z has been assigned to any word
 
         self.random_assignment()
+
+        self.loglikelihood = []
 
     def random_assignment(self):
         """ Random assign topics """
@@ -46,7 +52,8 @@ class Lda:
 
     def update(self):
         """ Perform 1 step of Gibbs sampling """
-        updated = 0
+        loglikelihood = 0.0
+
         for i,doc in enumerate(self.docs):
             for w,word in enumerate(doc):
                 # remove this word from the counts
@@ -60,34 +67,46 @@ class Lda:
                 p_zw = (self.beta + self.nwz[cur_w,:]) / (len(self.vocab)*self.beta + self.nz)
                 p_zd = (self.alpha + self.ndz[i]) / (self.n_topics*self.alpha + len(doc))
                 p_z = p_zw * p_zd
-                new_z = np.random.multinomial(1, p_z/sum(p_z)).argmax()
 
-                if new_z != cur_z:
-                    updated += 1
+                p_z /= sum(p_z)
+
+                new_z = np.random.multinomial(1, p_z).argmax()
+
+                loglikelihood += log(p_z[new_z])
 
                 self.assignment[i][w] = new_z
                 self.nwz[cur_w, new_z] += 1
                 self.ndz[i, new_z] += 1
                 self.nz[new_z] += 1
-        print "Updated %d"%updated
+
+        print "Loglikelihood %f" % loglikelihood
+        self.loglikelihood.append(loglikelihood)
+        
 
 
 
 
 # EXAMPLE
 print "Parsing dir.."
-docs, vocab, word_idx, _, _ = data.parse_dir("./data/")
+docs, vocab, word_idx, _, _ = data.parse_dir("./data/all/")
 # docs, vocab, word_idx, _, _ = data.parse_dir("/Users/jeisses/Documents/datasets/nlp/movie/review_polarity/txt_sentoken/all/")
 print "Done"
 print " ====== "
 print "Setting up LDA.."
 l = Lda(10, docs, vocab, word_idx)
-print "Done. Top words for each topic:"
-l.top_words(10)
-print "Training for 500 iterations..."
-for i in range(0, 500):
+
+print "Training for 200 iterations..."
+for i in range(0, 200):
     l.update()
     if i % 10 == 0:
         print " -- iteration %d ---"%i
 print "Done. Top words for reach topic:"
 l.top_words(10)
+
+loglikelihood = [item / 100000 for item in l.loglikelihood]
+
+plt.plot(loglikelihood, 'r-')
+plt.xlabel('Iterations')
+plt.ylabel('Loglikelihood x 10^5')
+plt.show()
+

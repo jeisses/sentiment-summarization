@@ -148,7 +148,11 @@ class MgLda:
             words = []
             for w in idcs:
                 words.append(self.vocab[w])
-            print "Local Topic %d: %s"%(k, words)
+
+            if type == "glob":
+                print "Global Topic %d: %s"%(k, words)
+            elif type == "loc":
+                print "Local Topic %d: %s"%(k, words)
 
     def p_v_r_z(self, d, i, w):
         """
